@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Upload & Summarizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .tab-btn {
+            padding: 12px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: #999;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .upload-area:hover,
+        .upload-area.active {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .upload-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        
+        .upload-text {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .upload-subtext {
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .file-list {
+            margin-bottom: 20px;
+        }
+        
+        .file-list h3 {
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .file-item {
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .file-name {
+            color: #333;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .file-size {
+            color: #999;
+            font-size: 12px;
+        }
+        
+        .remove-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s;
+        }
+        
+        .remove-btn:hover {
+            background: #ff5252;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .upload-btn {
+            background: #667eea;
+            color: white;
+        }
+        
+        .upload-btn:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .upload-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .clear-btn {
+            background: #e9ecef;
+            color: #333;
+        }
+        
+        .clear-btn:hover {
+            background: #dee2e6;
+        }
+        
+        .refresh-btn {
+            background: #20c997;
+            color: white;
+        }
+        
+        .refresh-btn:hover {
+            background: #12a89d;
+        }
+        
+        .status {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        
+        .status.loading {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+        
+        .summary-card {
+            background: #f8f9ff;
+            border: 1px solid #e0e7ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        
+        .summary-card:hover {
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+        
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+        
+        .summary-title {
+            color: #333;
+            font-weight: 600;
+            font-size: 15px;
+        }
+        
+        .summary-time {
+            color: #999;
+            font-size: 12px;
+        }
+        
+        .summary-content {
+            color: #555;
+            font-size: 14px;
+            line-height: 1.6;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+        
+        .summary-meta {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #999;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📄 PDF Upload & Summarizer</h1>
+            <p class="subtitle">Upload PDF files and get AI-powered summaries instantly</p>
+            
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('upload')">Upload</button>
+                <button class="tab-btn" onclick="switchTab('summaries')">View Summaries</button>
+            </div>
+            
+            <!-- Upload Tab -->
+            <div id="upload" class="tab-content active">
+                <div id="uploadStatus" class="status"></div>
+                
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">Click or Drag PDF Files Here</div>
+                    <div class="upload-subtext">Supports: .pdf files only</div>
+                    <input type="file" id="fileInput" multiple accept=".pdf">
+                </div>
+                
+                <div class="file-list" id="fileList" style="display: none;">
+                    <h3>Selected Files</h3>
+                    <div id="filesContainer"></div>
+                </div>
+                
+                <div class="button-group">
+                    <button class="upload-btn" id="sendBtn">Upload & Summarize</button>
+                    <button class="clear-btn" id="clearBtn">Clear All</button>
+                </div>
+            </div>
+            
+            <!-- Summaries Tab -->
+            <div id="summaries" class="tab-content">
+                <div id="summariesStatus" class="status"></div>
+                
+                <div class="button-group" style="margin-bottom: 20px;">
+                    <button class="refresh-btn" id="refreshBtn" onclick="loadSummaries()">🔄 Refresh Summaries</button>
+                </div>
+                
+                <div id="summariesContainer">
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <p>No summaries yet. Upload a PDF to get started.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let selectedFiles = [];
+        
+        // DOM Elements
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const filesContainer = document.getElementById('filesContainer');
+        const sendBtn = document.getElementById('sendBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const summariesContainer = document.getElementById('summariesContainer');
+        const summariesStatus = document.getElementById('summariesStatus');
+        
+        const API_URL = 'http://localhost:5000';
+        
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
+            document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+            
+            if (tab === 'summaries') {
+                loadSummaries();
+            }
+        }
+        
+        // File upload events
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('active');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('active');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('active');
+            handleFileSelect({ target: { files: e.dataTransfer.files } });
+        });
+        
+        // Handle file selection
+        function handleFileSelect(e) {
+            const files = Array.from(e.target.files).filter(f => f.name.endsWith('.pdf'));
+            
+            files.forEach(file => {
+                if (!selectedFiles.find(f => f.name === file.name)) {
+                    selectedFiles.push(file);
+                }
+            });
+            
+            renderFileList();
+            clearStatus('uploadStatus');
+        }
+        
+        // Render selected files
+        function renderFileList() {
+            filesContainer.innerHTML = '';
+            
+            selectedFiles.forEach((file, index) => {
+                const fileSize = (file.size / 1024 / 1024).toFixed(2);
+                
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div>
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${fileSize} MB</div>
+                    </div>
+                    <button class="remove-btn" onclick="removeFile(${index})">Remove</button>
+                `;
+                filesContainer.appendChild(fileItem);
+            });
+            
+            fileList.style.display = selectedFiles.length > 0 ? 'block' : 'none';
+            sendBtn.disabled = selectedFiles.length === 0;
+        }
+        
+        // Remove file
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            renderFileList();
+        }
+        
+        // Send files to API
+        sendBtn.addEventListener('click', async () => {
+            if (selectedFiles.length === 0) return;
+            
+            showStatus('uploadStatus', 'loading', 'Processing PDFs and generating summaries...');
+            sendBtn.disabled = true;
+            
+            try {
+                const formData = new FormData();
+                selectedFiles.forEach(file => {
+                    formData.append('files', file);  // Add each PDF
+                });
+                
+                const response = await fetch(`${API_URL}/upload`, {
+                    method: 'POST',
+                    body: formData  // Send FormData with PDFs
+                });
+                
+                const data = await response.json();  // Parse API response
+                
+                if (response.ok) {
+                    showStatus('uploadStatus', 'success', `✓ ${data.message}`);
+                    selectedFiles = [];
+                    renderFileList();
+                    
+                    // Auto-load summaries after 2 seconds
+                    setTimeout(() => {
+                        switchTab('summaries');
+                    }, 1500);
+                } else {
+                    showStatus('uploadStatus', 'error', `✗ ${data.message}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus('uploadStatus', 'error', '✗ Failed to connect to API. Is it running on localhost:5000?');
+            } finally {
+                sendBtn.disabled = false;
+            }
+        });
+        
+        // Load and display summaries
+        async function loadSummaries() {
+            showStatus('summariesStatus', 'loading', 'Loading summaries...');
+            
+            try {
+                const response = await fetch(`${API_URL}/summaries`);  // Fetch all summaries
+                const data = await response.json();  // Parse response
+                
+                if (response.ok && data.summaries.length > 0) {
+                    renderSummaries(data.summaries);
+                    clearStatus('summariesStatus');
+                } else {
+                    summariesContainer.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📋</div>
+                            <p>No summaries available yet.</p>
+                        </div>
+                    `;
+                    clearStatus('summariesStatus');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus('summariesStatus', 'error', '✗ Failed to load summaries');
+            }
+        }
+        
+        // Render summaries in UI
+        function renderSummaries(summaries) {
+            summariesContainer.innerHTML = '';
+            
+            summaries.forEach(summary => {
+                const uploadDate = new Date(summary.upload_time).toLocaleDateString();
+                
+                const summaryCard = document.createElement('div');
+                summaryCard.className = 'summary-card';
+                summaryCard.innerHTML = `
+                    <div class="summary-header">
+                        <div>
+                            <div class="summary-title">${summary.filename}</div>
+                            <div class="summary-time">Uploaded: ${uploadDate}</div>
+                        </div>
+                    </div>
+                    <div class="summary-content">
+                        ${summary.summary}
+                    </div>
+                    <div class="summary-meta">
+                        <span>📊 Size: ${summary.size_mb} MB</span>
+                    </div>
+                `;
+                summariesContainer.appendChild(summaryCard);
+            });
+        }
+        
+        // Clear files
+        clearBtn.addEventListener('click', () => {
+            selectedFiles = [];
+            fileInput.value = '';
+            renderFileList();
+            clearStatus('uploadStatus');
+        });
+        
+        // Status message handlers
+        function showStatus(elementId, type, message) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+        
+        function clearStatus(elementId) {
+            document.getElementById(elementId).className = 'status';
+        }
+    </script>
+</body>
+</html>
