@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Upload & Summarizer</title>
+    <title>PDF Upload & RAG Summarizer</title>
     <style>
         * {
             margin: 0;
@@ -48,6 +48,7 @@
             gap: 10px;
             margin-bottom: 30px;
             border-bottom: 2px solid #eee;
+            flex-wrap: wrap;
         }
         
         .tab-btn {
@@ -209,6 +210,22 @@
             background: #12a89d;
         }
         
+        .query-btn {
+            background: #667eea;
+            color: white;
+        }
+        
+        .query-btn:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .query-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
         .status {
             padding: 12px;
             border-radius: 6px;
@@ -287,6 +304,42 @@
             color: #999;
         }
         
+        .rag-answer {
+            background: #e7f5ff;
+            border: 1px solid #74c0fc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        
+        .rag-answer:hover {
+            box-shadow: 0 4px 12px rgba(0, 150, 250, 0.15);
+        }
+        
+        .rag-question {
+            color: #0066cc;
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+        
+        .rag-response {
+            color: #333;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+        
+        .rag-context {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 3px solid #74c0fc;
+            font-size: 12px;
+            color: #666;
+        }
+        
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -313,18 +366,55 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
+        .query-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .query-input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .query-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .collection-select {
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            min-width: 200px;
+            transition: border-color 0.3s;
+        }
+        
+        .collection-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="card">
-            <h1>📄 PDF Upload & Summarizer</h1>
-            <p class="subtitle">Upload PDF files and get AI-powered summaries instantly</p>
+            <h1>🤖 Upload PDF, Get Summaries, and Ask Questions</h1>
+            <p class="subtitle">Upload PDFs, generate summaries, and ask questions using Retrieval-Augmented Generation (RAG)</p>
             
             <!-- Tabs -->
             <div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('upload')">Upload</button>
-                <button class="tab-btn" onclick="switchTab('summaries')">View Summaries</button>
+                <button class="tab-btn active" onclick="switchTab('upload')">📤 Upload</button>
+                <button class="tab-btn" onclick="switchTab('summaries')">📋 Summaries</button>
+                <button class="tab-btn" onclick="switchTab('query')">❓ Ask Questions (RAG)</button>
             </div>
             
             <!-- Upload Tab -->
@@ -364,12 +454,36 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- RAG Query Tab -->
+            <div id="query" class="tab-content">
+                <div id="queryStatus" class="status"></div>
+                
+                <div style="margin-bottom: 20px;">
+                    <h3 style="color: #333; margin-bottom: 15px;">Ask a Question</h3>
+                    <div class="query-input-group">
+                        <select id="collectionSelect" class="collection-select">
+                            <option value="">All Documents</option>
+                        </select>
+                        <input type="text" id="queryInput" class="query-input" placeholder="Ask a question about your documents..." />
+                        <button class="query-btn" id="querySubmitBtn" style="flex: 0 0 auto; padding: 12px 30px;">Send</button>
+                    </div>
+                </div>
+                
+                <div id="answersContainer">
+                    <div class="empty-state">
+                        <div class="empty-icon">❓</div>
+                        <p>Upload documents first, then ask questions about their content.</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         // State
         let selectedFiles = [];
+        let ragAnswers = [];
         
         // DOM Elements
         const uploadArea = document.getElementById('uploadArea');
@@ -381,6 +495,11 @@
         const uploadStatus = document.getElementById('uploadStatus');
         const summariesContainer = document.getElementById('summariesContainer');
         const summariesStatus = document.getElementById('summariesStatus');
+        const queryInput = document.getElementById('queryInput');
+        const querySubmitBtn = document.getElementById('querySubmitBtn');
+        const queryStatus = document.getElementById('queryStatus');
+        const answersContainer = document.getElementById('answersContainer');
+        const collectionSelect = document.getElementById('collectionSelect');
         
         const API_URL = 'http://localhost:5000';
         
@@ -393,6 +512,8 @@
             
             if (tab === 'summaries') {
                 loadSummaries();
+            } else if (tab === 'query') {
+                loadCollections();
             }
         }
         
@@ -462,33 +583,32 @@
         sendBtn.addEventListener('click', async () => {
             if (selectedFiles.length === 0) return;
             
-            showStatus('uploadStatus', 'loading', 'Processing PDFs and generating summaries...');
+            showStatus('uploadStatus', 'loading', '⏳ Processing PDFs and generating summaries with RAG embeddings...');
             sendBtn.disabled = true;
             
             try {
                 const formData = new FormData();
                 selectedFiles.forEach(file => {
-                    formData.append('files', file);  // Add each PDF
+                    formData.append('files', file);
                 });
                 
                 const response = await fetch(`${API_URL}/upload`, {
                     method: 'POST',
-                    body: formData  // Send FormData with PDFs
+                    body: formData
                 });
                 
-                const data = await response.json();  // Parse API response
+                const data = await response.json();
                 
                 if (response.ok) {
                     showStatus('uploadStatus', 'success', `✓ ${data.message}`);
                     selectedFiles = [];
                     renderFileList();
                     
-                    // Auto-load summaries after 2 seconds
                     setTimeout(() => {
                         switchTab('summaries');
                     }, 1500);
                 } else {
-                    showStatus('uploadStatus', 'error', `✗ ${data.message}`);
+                    showStatus('uploadStatus', 'error', `✗ ${data.detail || data.message}`);
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -503,8 +623,8 @@
             showStatus('summariesStatus', 'loading', 'Loading summaries...');
             
             try {
-                const response = await fetch(`${API_URL}/summaries`);  // Fetch all summaries
-                const data = await response.json();  // Parse response
+                const response = await fetch(`${API_URL}/summaries`);
+                const data = await response.json();
                 
                 if (response.ok && data.summaries.length > 0) {
                     renderSummaries(data.summaries);
@@ -536,7 +656,7 @@
                 summaryCard.innerHTML = `
                     <div class="summary-header">
                         <div>
-                            <div class="summary-title">${summary.filename}</div>
+                            <div class="summary-title">📄 ${summary.filename}</div>
                             <div class="summary-time">Uploaded: ${uploadDate}</div>
                         </div>
                     </div>
@@ -545,9 +665,112 @@
                     </div>
                     <div class="summary-meta">
                         <span>📊 Size: ${summary.size_mb} MB</span>
+                        ${summary.collection_name ? `<span>🗂️ Collection: ${summary.collection_name}</span>` : ''}
                     </div>
                 `;
                 summariesContainer.appendChild(summaryCard);
+            });
+        }
+        
+        // Load collections for RAG query
+        async function loadCollections() {
+            try {
+                const response = await fetch(`${API_URL}/collections`);
+                const data = await response.json();
+                
+                if (response.ok && data.collections.length > 0) {
+                    collectionSelect.innerHTML = '<option value="">All Documents</option>';
+                    data.collections.forEach(collection => {
+                        const option = document.createElement('option');
+                        option.value = collection;
+                        option.textContent = collection.replace('doc_', '');
+                        collectionSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading collections:', error);
+            }
+        }
+        
+        // Submit RAG query
+        querySubmitBtn.addEventListener('click', submitQuery);
+        queryInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') submitQuery();
+        });
+        
+        async function submitQuery() {
+            const query = queryInput.value.trim();
+            if (!query) return;
+            
+            showStatus('queryStatus', 'loading', '🔍 Searching documents and generating answer...');
+            querySubmitBtn.disabled = true;
+            
+            try {
+                const requestBody = {
+                    query: query,
+                    collection_name: collectionSelect.value || null
+                };
+                
+                console.log('Sending query request:', requestBody);
+                
+                const response = await fetch(`${API_URL}/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (response.ok) {
+                    console.log('Success - rendering answer');
+                    ragAnswers.unshift(data);
+                    renderAnswers();
+                    queryInput.value = '';
+                    clearStatus('queryStatus');
+                    showStatus('queryStatus', 'success', '✓ Answer generated successfully!');
+                    setTimeout(() => clearStatus('queryStatus'), 3000);
+                } else {
+                    console.error('Error response:', data);
+                    showStatus('queryStatus', 'error', `✗ ${data.detail || 'Error generating answer'}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus('queryStatus', 'error', `✗ Failed to submit query: ${error.message}`);
+            } finally {
+                querySubmitBtn.disabled = false;
+            }
+        }
+        
+        // Render answers
+        function renderAnswers() {
+            answersContainer.innerHTML = '';
+            
+            if (ragAnswers.length === 0) {
+                answersContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">❓</div>
+                        <p>Ask a question about your documents above.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            ragAnswers.forEach(item => {
+                const answerCard = document.createElement('div');
+                answerCard.className = 'rag-answer';
+                answerCard.innerHTML = `
+                    <div class="rag-question">Q: ${item.query}</div>
+                    <div class="rag-response"><strong>A:</strong> ${item.answer}</div>
+                    ${item.context_chunks && item.context_chunks.length > 0 ? `
+                        <div class="rag-context">
+                            <strong>📚 Context Sources:</strong><br>
+                            ${item.context_chunks.map((chunk, i) => `<p style="margin-top: 8px;">${chunk.substring(0, 150)}...</p>`).join('')}
+                        </div>
+                    ` : ''}
+                `;
+                answersContainer.appendChild(answerCard);
             });
         }
         
